@@ -8,27 +8,28 @@ import pandas as pd
 from skimage import io, transform
 import numpy as np
 import matplotlib.pyplot as plt
+from torchvision import transforms, utils
 
-all_characters = string.printable
-n_characters = len(all_characters)
 
 class imgDataset(Dataset):
     """Our dataset."""
 
-    def __init__(self, filename):
+    def __init__(self, filedir):
         """
         Args:
-            csv_file (string): Path to the csv file with annotations.
-            root_dir (string): Directory with all the images.
-            transform (callable, optional): Optional transform to be applied
-                on a sample.
+            filedir (string): Path to the images (class is in filename).
         """
-
-        self.filename = filename
-        self.raw_data = unidecode.unidecode(open(filename).read())
+        self.filedir = os.path.join(os.getcwd(), filedir)
+        self.raw_data = os.listdir(filedir)
 
     def __len__(self):
         return len(self.raw_data)
 
     def __getitem__(self, idx):
-        return {'input': [], 'target': []}
+        img_name = os.path.join(self.filedir, self.raw_data[idx])
+        image = io.imread(img_name)
+        if 'Cat' in self.raw_data[idx]:
+            target = 0
+        else:
+            target = 1
+        return {'input': image, 'target': target}

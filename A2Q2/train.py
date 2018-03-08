@@ -5,9 +5,10 @@ import argparse
 
 # thirdparty imports
 from torch.utils.data import DataLoader
+import matplotlib.pyplot as plt
 
 # local imports
-from dataset import imgDataset
+from dataset import imgDataset, visualize_image
 
 def main():
     # Parse command line arguments

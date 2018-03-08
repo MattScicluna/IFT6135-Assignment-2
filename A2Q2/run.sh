@@ -4,4 +4,4 @@ if [ ! -d "datasets" ]; then
   python download_cat_dog.py
 fi
 
-python train.py --train_set datasets/train_64x64 --valid_set datasets/valid_64x64
+python train.py --train_set "datasets/train_64x64/" --valid_set "datasets/valid_64x64/"
