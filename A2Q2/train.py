@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 
 # local imports
-from dataset import imgDataset, visualize_image
+from dataset import imgDataset, show_image
 
 def main():
     # Parse command line arguments
@@ -30,6 +30,11 @@ def main():
     valid_dataloader = DataLoader(valid_dataset, batch_size=args.batch_size,
                                   shuffle=True, num_workers=args.num_workers,
                                   drop_last=True)
+
+    #for i in range(len(train_dataset)):
+    #    sample = train_dataset[i]
+    #    show_image(sample['input'])
+    #    break
 
 if __name__ == '__main__':
     main()

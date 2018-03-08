@@ -33,3 +33,9 @@ class imgDataset(Dataset):
         else:
             target = 1
         return {'input': image, 'target': target}
+
+
+def show_image(image):
+    plt.figure()
+    plt.imshow(image)
+    plt.show()
