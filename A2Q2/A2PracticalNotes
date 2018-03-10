@@ -1,6 +1,0 @@
--Standardized with mean and std channels gave improvement
--batch norm on conv layer didnt help, and was very slow
--batch size was very important. 300 too big, 50 was best performance
--LR 0.01, smaller ones worked okay with bigger batch size, but encountered random dips in training error part way (some kind of instability)
--weight decay harmed the network
-batch norm in linear layers worked best. Batch norm is convolutional layers didnt seem th help
