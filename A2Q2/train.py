@@ -1,5 +1,3 @@
-# https://github.com/spro/char-rnn.pytorch
-
 # stdlib imports
 import argparse
 import os
@@ -14,8 +12,9 @@ import torch
 import torch.nn as nn
 
 # local imports
-from model import imCNN3 as imgCNN
-
+from model import imCNN2 as imgCNN
+from lr_scheduler import ReduceLROnPlateau
+#from torch.optim import lr_scheduler
 
 def main():
     # Parse command line arguments
@@ -24,11 +23,12 @@ def main():
     argparser.add_argument('--valid_set', type=str, required=True)
     argparser.add_argument('--test_set', type=str, required=True)
     argparser.add_argument('--learning_rate', type=float, default=0.01)
-    argparser.add_argument('--n_epochs', type=int, default=100)
-    argparser.add_argument('--batch_size', type=int, default=50)
-    #argparser.add_argument('--weight_decay', type=int, default=5e-3)
-    #argparser.add_argument('--momentum', type=int, default=0.9)
+    argparser.add_argument('--n_epochs', type=int, default=50)
+    argparser.add_argument('--batch_size', type=int, default=32)
+    argparser.add_argument('--weight_decay', type=int, default=5e-4)
+    argparser.add_argument('--momentum', type=int, default=0.9)
     argparser.add_argument('--num_workers', type=int, default=8)
+    argparser.add_argument('--optim_type', type=str, default='SGD')
     argparser.add_argument('--model_file', type=str, default='None')
     argparser.add_argument('--cuda', action='store_true')
     args = argparser.parse_args()
@@ -62,10 +62,11 @@ def main():
         decoder = imgCNN()
 
         # Optimizer
-        optimizer = torch.optim.Adam(decoder.parameters(), lr=args.learning_rate)
-
-        # optimizer = torch.optim.SGD(decoder.parameters(), lr=args.learning_rate,
-        #                            momentum=args.momentum, weight_decay=args.weight_decay)
+        if args.optim_type == 'SGD':
+            optimizer = torch.optim.SGD(decoder.parameters(), lr=args.learning_rate,
+                                        momentum=args.momentum, weight_decay=args.weight_decay)
+        else:
+            optimizer = torch.optim.Adam(decoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
 
     else:
         model = torch.load(args.model_file)
@@ -73,7 +74,11 @@ def main():
         state_dict = model['state_dict']
         decoder = imgCNN()
         decoder.load_state_dict(state_dict)
-        optimizer = torch.optim.Adam(decoder.parameters(), lr=args.learning_rate)
+        if args.optim_type == 'SGD':
+            optimizer = torch.optim.SGD(decoder.parameters(), lr=args.learning_rate,
+                                        momentum=args.momentum, weight_decay=args.weight_decay)
+        else:
+            optimizer = torch.optim.Adam(decoder.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
         optimizer_state = model['optimizer']
         optimizer.load_state_dict(optimizer_state)
 
@@ -81,11 +86,16 @@ def main():
         valid_acc_vec = model['valid_acc_vec']
         train_loss_vec = model['train_loss_vec']
         valid_loss_vec = model['valid_loss_vec']
+
         print('model successfully loaded! Resuming training...')
 
     if args.cuda:
         print('running with GPU...')
         decoder.cuda()
+
+    #  Scheduler
+    scheduler = ReduceLROnPlateau(optimizer, 'min', patience=10, min_lr=1e-6)
+    #scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
 
     # Loss
     criterion = nn.CrossEntropyLoss()
@@ -130,13 +140,10 @@ def main():
                 valid_acc += output_vals.eq(target).sum().data[0]
                 num_samples_v += args.batch_size
 
-            pcnt = epoch / args.n_epochs * 100
+            scheduler.step(valid_loss/num_samples_v)
+            #scheduler.step(epoch)
 
-            #  Save results
-            train_acc_vec.append(train_acc/num_samples_t * 100)
-            train_loss_vec.append(training_loss/num_samples_t)
-            valid_acc_vec.append(valid_acc/num_samples_v * 100)
-            valid_loss_vec.append(valid_loss/num_samples_v)
+            pcnt = epoch / args.n_epochs * 100
 
             #  Display current results
             log = ('epoch #{} ({:.1f}%) - training loss {:.4f} - training acc: {:.2f}% - valid acc {:.2f}%')
@@ -145,6 +152,31 @@ def main():
                              training_loss/num_samples_t,
                              train_acc/num_samples_t * 100,
                              valid_acc/num_samples_v * 100))
+
+            #  Save results
+            train_acc_vec.append(train_acc/num_samples_t * 100)
+            train_loss_vec.append(training_loss/num_samples_t)
+            valid_acc_vec.append(valid_acc/num_samples_v * 100)
+            valid_loss_vec.append(valid_loss/num_samples_v)
+
+            # Stop when there is overfitting
+            if epoch > 50:
+                if (valid_loss_vec[-2]-valid_loss_vec[-1] > 0):
+                    valid_acc_vec.pop()
+                    train_acc_vec.pop()
+                    print('overfitting! stopping...')
+                    break
+
+            state = {
+                'epoch': epoch,
+                'state_dict': decoder.state_dict(),
+                'optimizer': optimizer.state_dict(),
+                'train_acc_vec': train_acc_vec,
+                'valid_acc_vec': valid_acc_vec,
+                'train_loss_vec': train_loss_vec,
+                'valid_loss_vec': valid_loss_vec
+            }
+            torch.save(state, 'models/most-recent-model')
 
     except KeyboardInterrupt:
         print("Saving before quit...")
